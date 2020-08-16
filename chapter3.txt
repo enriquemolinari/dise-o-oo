@@ -1,0 +1,139 @@
+# Desacoplamiento
+El acoplamiento entre clases es algo que tenemos que controlar y mantener reducido al mínimo posible. Si al modificar un objeto es necesario modificar los objetos que dependen de él, entonces el acoplamiento existe. Es importante entender en cada sistema qué partes son más propensas a cambiar y proteger de dichas partes al resto del sistema. En éste capítulo, principalmente, se muestran técnicas para desacoplar nuestro modelo de objetos, aquellos objetos que implementan los requerimientos funcionales, de detalles técnicos como por ejemplo acceso a datos persistentes o llamados a servicios web.
+
+## Inyección de Dependencias
+
+Supongamos el siguiente ejemplo:
+
+{caption: "Dependencia dura en Cajero"}
+```java
+class Cajero {
+ private PayPal payPal = new PayPal("https://paypal.com/cobrar");
+
+ public void cobrar(List<Producto> productos, Tarjeta tarjeta) {
+  // ...
+  payPal.cobrar(monto, tarjeta.numero());
+ }
+}
+```
+*Cajero* tiene la responsabilidad de cobrar productos con tarjeta de crédito, y para hacerlo consume un servicio de PayPal contratado. La clase *PayPal* encapsula un servicio web que será consumido para realizar la transacción. La clase *Cajero* encapsula y crea la instancia de *PayPal* dentro de la definición de la clase. Ésto hace que cualquier instancia de *Cajero* realice cobros con tarjeta de crédito únicamente con instancias de *PayPal*. Si decidiéramos contratar otro servicio de cobro más adelante, deberíamos modificar la clase. Además, ésto hace imposible _testear_ la clase en forma unitaria, ni permite utilizar diferentes URLs del servicio web (Ej. URLs de ambientes de prueba). Habíamos dicho anteriormente que es importante entender aquellas partes del sistema que son propensas a cambiar, de modo de aislarlas lo más posible. Ésta es una de ellas. Una forma de asilarla (o desacoplarme) es _inyectando_ _la_ _dependencia_ como se muestra a continuación:
+
+{caption: "Inyectando la dependencia vía constructor"}
+```java
+class Cajero {
+ private PayPal payPal;
+
+ public Cajero(PayPal payPal) {
+  this.payPal = payPal;
+ }
+
+ public void cobrar(List<Producto> productos, Tarjeta tarjeta) {
+  // ...
+  payPal.cobrar(monto, tarjeta.numero());
+ }
+}
+```
+
+De esta forma, ya puedo testear en forma unitaria la clase *Cajero* o utilizar *PayPal* con diferentes URLs de diferentes ambientes (Dev, Test, etc). Reduje el acoplamiento. En lenguajes con tipado dinámico como PHP o Ruby (no es el caso de Java que tiene tipado estático), podría inyectar en *Cajero* cualquier instancia que pueda responder al mensaje *cobrar*(*monto*, *numeroTarjeta*), sea subclase o no de *Cajero*. Continuemos entonces en la siguiente sección para entender cómo separar aún mas a *Cajero* de *PayPal*.
+
+## Depender de Abstracciones
+
+El ejemplo anterior no es suficiente, necesitamos separar éstas clases aun más, necesitamos reducir aún más el acoplamiento. Para ello, creamos nuevas abstracciones, en este caso utilizaremos las interfaces de Java (también lenguajes con tipado dinámico como PHP han incorporado interfaces, aun que no sean necesarias, mejoran considerablemente la legibilidad del código), de modo que *Cajero* este acoplado de conceptos más abstractos y no de clases concretas. Mejoremos el ejemplo anterior de la siguiente forma:
+
+{caption: "Intefaz para desacoplarme de un vendor específico"}
+```java
+interface PagoOnline {
+ void cobrar(float monto, String numeroTarjeta);
+}
+
+class PayPal implements PagoOnline {
+ //...
+ public void cobrar(float monto, String numeroTarjeta) {
+  //...
+ }
+}
+
+class Cajero {
+ private PagoOnline pagoOline;
+
+ public Cajero(PagoOnline pagoOline) {
+  this.pagoOline = pagoOline;
+ }
+
+ public void cobrar(List<Producto> productos, Tarjeta tarjeta) {
+  // ...
+  pagoOline.cobrar(monto, tarjeta.numero());
+ }
+}
+```
+Ahora *Cajero* depende de la abstracción *PagoOnline* en lugar de la clase concreta *PayPal*. Ésto nos permite cambiar fácilmente mañana la compañía (vendor) con quien queramos implementar este servicio sin necesidad de modificar clases existentes, sino creando clases nuevas. En cada lenguaje de programación uno tiene que buscar las construcciones sintácticas que éstos poseen para reducir el acoplamiento, especialmente entre clases del modelo y clases que implementan detalles técnicos. En Java la construcción sintáctica más abstracta que tenemos es la interfaz.
+
+{blockquote}
+Es altamente recomendable utilizar ésta técnica en todas las dependencias que tengamos entre objetos de negocio y objetos externos al negocio (o clases concretas que encapsulan detalles técnicos).
+{/blockquote}
+
+## Invertir las Dependencias
+
+Toda dependencia tiene una dirección. En el ejemplo anterior *Cajero* depende de *PagoOnline*, y no es sentido contrario. Sandi Metz[^^metz] sostiene que debemos depender en clases o módulos que cambian menos frecuentemente que yo. En el caso anterior *Cajero* depende de *PagoOline* que es una interfaz. Las clases abstractas y las interfaces cambian mucho menos frecuentemente que las clases concretas, por eso es siempre bueno depender de abstracciones y no de clases concretas.
+
+Invertir dependencias es una técnica que nos lleva a cumplir con la técnica presentada anteriormente: depender de abstracciones. Esto de que hay clases que cambian más frecuentemente que otras aplica tanto a clases que usamos y escribimos nosotros mismos como a clases que usamos pero no escribimos. El lenguaje que utilizamos nos ofrece un conjunto de clases como *String*, *List*, etc. Éstas clases cambian muy poco seguido (cuando lo hacen en general son compatibles con versiones anteriores utilizando mecanismos como *deprecated* en Java) muy probablemente menos seguido que nuestras clases, con lo cual es seguro depender de ellas.
+
+También están las clases de frameworks o librerías que incorporamos en nuestra aplicación. Sólo nosotros podemos evaluar si queremos o no acoplarnos fuertemente a ellos. Y esto dependerá cuán volátil o maduro sea este framework. Sin embargo, los cambios tan rápidos en las tecnologías hacen que en poco tiempo queramos o necesitemos cambiar de framework completamente lo cual tiene un costo altísimo si no lo manejamos bien de entrada. ¿Qué quiero decir con manejarlo bien de entrada? Acoplar nuestras clases que forman el modelo de dominio, quien implementa nuestra lógica de negocios, a abstracciones que sean implementadas por clases concretas acopladas a un framework específico. De modo de aislarnos lo más posible del framework así cuando necesitemos cambiarlo no repercuta en todo el sistema.
+
+Existe un principio denominado invertir depedencias (perteneciente al grupo de principios SOLID) que dice: Los módulos de alto nivel no deberían depender en módulos de bajo nivel, si no que ambos deben depender de abstracciones. Este principio claramente plantea cómo debe ser la dirección de las dependencias. Considere el siguiente ejemplo[^^martinc3] donde se implementa un *Copiador* cuya tarea es leer la entrada de teclado hasta que se ingresa la tecla "enter" y copiarlo en un archivo en el disco.
+
+```java
+class Copiador {
+ public void copiar() throws IOException {
+  try(Scanner scanner = new Scanner(System.in);
+   FileOutputStream f = new FileOutputStream(
+                          new File("/home/salida.txt"))) {
+    f.write(scanner.nextLine().getBytes());
+  }
+ }
+}
+```
+
+El método *Copiador*#*copiar*() utiliza la entrada estándar (*System*.*in*) que en general es el teclado y la abstracción *File* para generar el archivo en disco. La siguiente figura muestra la clase *Copiador* y sus dependencias.
+
+{height: "30%"}
+![Copiador y sus dependencias](yed/copiador.png)
+
+Podemos observar que las clases *System*.*in* y *File* son reutilizables en otros contextos, sin embargo *Copiador* no, ya que depende de *System*.*in* y *File*. Supongamos por ejemplo que ahora nos piden leer de teclado y enviarlo a una impresora, o nos piden leer de un servicio Web y enviarlo a otro. Podríamos resolverlo enviando parámetros al método *copiar*() y poner algunos *if*s que nos permita seleccionar entre estas opciones. Esta forma de diseñar eventualmente se transforma en algo complejo de cambiar. Además, como mencionamos en el capitulo anterior en la sección de binding dinámico, queremos agregar funcionalidad nueva agregando código y no modificando código existente.
+
+Si tomamos qué nos dice el principio de inversión de dependencias y volvemos a revisar nuestro diseño, podemos observar que *Copiador* es una clase de alto nivel y *System*.*in* y *File* son clases de bajo nivel (detalles técnicos como hemos denominado anteriormente). La abstracción de fondo es copiar datos a partir de una entrada y llevarlos a una salida, el teclado y un archivo en disco son detalles técnicos de bajo nivel. Vamos entonces a invertir las dependencias. Para ello ya que estamos utilizando el lenguaje Java, utilizaremos las clases abstractas *InputStream* y *OutputStream* de Java generando el siguiente diseño:
+
+{height: "50%"}
+![Copiador desacoplado de los detalles de bajo nivel](yed/copiador-desacoplado.png)
+
+*InputStream* y *OutputStream* son clases abstractas que modelan entradas y salidas en términos generales (o abstractos). Ahora las tres clases dependen de abstracciones tal como dice el principio. Veamos entonces cómo queda la clase *Copiador*:
+```java
+class Copiador {
+ private InputStream input;
+ private OutputStream output;
+
+ public Copiador(InputStream input, OutputStream output) {
+  this.input = input;
+  this.output = output;
+ }
+
+ public void copiar() throws IOException {
+  try(Scanner scanner = new Scanner(input)) {
+   output.write(scanner.nextLine().getBytes());
+  }
+ }
+}
+
+class Main {
+ public static void main(String[] args) throws IOException {
+  Copiador c = new Copiador(System.in, new FileOutputStream(
+                                new File("/home/enrique/salida.txt")));
+  c.copiar();
+ }
+}
+```
+
+Podemos notar que invirtiendo las dependencias, también utilizamos las otras dos técnicas de las que hablamos antes: depender de abstracciones e inyección de dependencias. Con éste nuevo diseño podríamos reutilizar *Copiador* inyectándole vía su constructor la implementación que nos permita leer o escribir desde y hacia diferentes detalles técnicos.
+
+[^^martinc3]: Agile Software Development, Principles, Patterns and Practices. Robert C Martin, Prentice Hall, 2003.
+[^^metz]: Practical Object Oriented Design in Ruby. Sandi Metz, Addison Wesley, 2013.

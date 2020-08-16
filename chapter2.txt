@@ -1,0 +1,1007 @@
+# Objetos
+
+## Objetos y clases
+Una clase es un recurso que provee el lenguaje para crear *objetos*, mientras que un *objeto* es un "organismo viviente"[^^west] que de una forma u otra existe en el mundo que estamos modelando. Son los Objetos los que utilizamos para modelar un problema o situación, las clases simplemente son una herramienta sintáctica para poder crearlos. Los objetos son el principal mecanismo de abstracción que provee el paradigma de objetos y es a través de ellos que tenemos reuso de código.
+
+### Sobre los nombres
+Algunos dicen que la programación orientada a objetos es el arte de ponerle nombre a las cosas. No están muy equivocados. Una práctica frecuentemente utilizada que deberíamos intentar evitar, es ponerle nombre a las clases por lo que hace (generalmente sus nombres en ingles terminan en "-er") y no por lo que es. Por ejemplo, *DateFormatter* (*FormateadorDeFecha*), porque su responsabilidad principal es darle un formato específico a una fecha. En lugar de mirar en lo que hace, deberíamos mirar en lo que es, en los objetos que sus instancias van a encapsular y nombrarlo en base a esto. Entonces un nombre mejor sería simplemente Fecha o FechaFormateada[^^yegorch11].
+
+## Roles vs clases
+Cuando modelamos en objetos, una cuestión que suele confundirnos es como distinguir si necesitamos crear abstracciones nuevas específicas o son roles que un objeto tiene en determinado momento. Por ejemplo, ¿*padre* y *madre* son clases específicas o roles de *persona*? O sea, cuando es un rol deberíamos hacer lo siguiente:
+{caption: "Roles"}
+```java
+miPapa = new Persona("Ricardo Molinari", "LE 6543098");
+miMama = new Persona("Susana Cano", "LE 6754321")
+```
+Mientras que si fueran clases sería:
+{caption: "Clases"}
+```java
+miPapa = new Padre("Ricardo Molinari", "LE 6543098");
+miMama = new Madre("Susana Cano", "LE 6754321")
+```
+¿De qué depende que sean roles o clases?
+
+Depende del dominio que estemos modelando. Si realmente necesitamos que *Madre* o *Padre* tengan alguna responsabilidad específica y ésta no corresponde en *Persona*, entonces se justifica la creación de las clases. De otra forma, son roles de *Persona*.
+
+## Constructores
+
+Una instancia debe inicializarse utilizando un constructor y al finalizar su ejecución debe dejar al objeto consistente, listo para comenzar a utilizar sus servicios.
+
+Mientas más constructores tenga una clase mejor, ya que brinda varias formas de crear instancias facilitando su uso. Por ejemplo, quiero poder crear instancias de *Dinero* de varias formas diferentes[^^yegorch12]:
+
+{caption: "Constructores primarios y secundarios"}
+```java
+new Dinero(300);
+new Dinero("1500");
+new Dinero("$1500");
+new Dinero(23,2f);
+
+class Dinero {
+ private float monto;
+ public Dinero(String monto) {
+  this(Dinero.parse(monto));
+ }
+ public Dinero(int monto) {
+  this((float)monto);
+ }
+ public Dinero(float monto) {
+  this.monto = monto;
+ }
+ private static float parse(String monto) {
+  ...
+ }
+}
+```
+
+Observe que existen tres constructores. El último constructor es denominado *principal*, ya que inicializa la variable de instancia. Los otros dos constructores son *secundarios* y su implementación siempre termina en invocar al constructor principal (de forma de no escribir código duplicado). Un cliente de *Dinero* no tiene forma de percibir como está almacenado internamente el valor de *monto*.
+
+Finalmente, observe que *parse* es un método estático (es estático porque Java no nos permite hacer nada antes de llamar a *this*()) privado ya que no queremos que sea utilizado por clientes, sino que hay que utilizar los constructores. Y además, muy importante, la lógica de parsing se encuentra encapsulada en la clase *Dinero*, y no desparramada por los clientes que deseen utilizar dicha clase.
+
+## Métodos
+
+### Separación en Comandos y Consultas
+
+En ingles Command and Query Separation[^^mayerch23], es un principio que sugiere separar las responsabilidades que los objetos tienen en *comandos* y *consultas* donde:
+- *Comando*: Genera cambios de estado en el objeto. Nunca retorna un valor, pero podría lanzar excepciones.
+- *Consulta*: No genera cambios de estado y siempre retorna un valor.
+
+Este principio dice que los métodos deben ser *comandos* o *consultas*, _pero no ambos_. ¿Por qué es importante cumplir con este principio? Observe la interfaz *File* e intente entender qué hace su implementación:
+
+{caption: "Mezclando Comando y Consulta"}
+```java
+interface File {
+  String save(String nombre, String contenido);
+}
+```
+¿Qué es lo que retorna *save*? ¿El *path* al archivo grabado? ¿su contenido? No queda demasiado claro. Ahora observe una interfaz similar que cumple dicho principio:
+
+{caption: "Separación en Comandos y Consultas"}
+```java
+interface File {
+  void save(String nombre, String contenido);
+  String path(String nombre);
+}
+```
+Éste principio genera interfaces mas limpias y claras, lo que hace más simple comprender qué hacen las operaciones. Esto reduce el tiempo que necesitaríamos invertir si tuviéramos que revisar la implementación de cada método para entender que es lo que hace.
+
+### Parámetros de Entrada
+
+La programación defensiva es una práctica que tiene el objetivo de asegurar que una pieza de software pueda seguir funcionando ante la ocurrencia de eventos inesperados. Un lugar donde es habitual utilizar esta práctica es en los parámetros de entrada. Observe la siguiente clase:
+
+{caption: "Parámetros de inicialización sin validación"}
+```java
+class Disco {
+ private String pathBase;
+
+ public Disco(String pathBase) {
+  this.pathBase = pathBase;
+ }
+
+ public void guardar(String nombre, String contenido) {
+  if (!pathBase.endsWith("/")) {
+	 nombre = "/" + nombre;
+  }
+  Files.write(Paths.get(pathBase + nombre), contenido.getBytes());
+ }
+}
+```
+La clase *Disco* requiere que *pathBase* no sea nulo. Si fuera nulo entonces el método guardar generará un *NullPointerException*. De forma similar si *pathBase* contiene una ruta que no existe en el disco también se generará una excepción. Éstas condiciones mencionadas forman lo que se denomina *invariante* de la clase, las cuales son aquellas condiciones que deben cumplirse para garantizar que sus métodos funcionen como fueron especificados. Para "defendernos" de ésta posibilidad y garantizar el invariante de la clase *Disco* modificamos el constructor de la siguiente forma:
+
+{caption: "Validación de parámetros de inicialización"}
+```java
+class Disco {
+ ...
+ public Disco(String pathBase) {
+  Objects.requireNonNull(pathBase);
+
+  Path path = Paths.get(pathBase);
+  if (Files.notExists(path)) {
+   throw new IllegalArgumentException("No existe el path...");
+  }
+
+  this.pathBase = pathBase;
+ }
+
+ public void guardar(String nombre, String contenido) throws IOException {
+  ...
+ }
+}
+```
+Ahora cuando construimos una instancia de *Disco*, el objeto resultante queda consistente tal como se describe en la sección sobre constructores.
+
+### Parámetros de retorno
+
+Siguiendo con la clase *Disco*[^^semmanpl], agreguemos un método de consulta donde dado un nombre de archivo nos devuelve su contenido:
+
+{caption: "¿Qué retornamos?"}
+```java
+class Disco {
+ ...
+ public String content(String nombre) throws IOException {
+  Objects.requireNonNull(nombre);
+  List<String> lineas = Files.readAllLines(Paths.get(nombre));
+   return String.join(" ", lineas);
+ }
+}
+```
+Si observamos primero la interfaz, sin revisar su implementación, el cliente va a estar esperando un *String* válido como salida. ¿Qué garantías estamos dando de qué *Disco*#*content* siempre retorne un *String* válido o *null*? Con esta implementación se puede decir que siempre retorna un *String*, pero su ejecución podría no ser exitosa generando una excepción. *Files*#*readAllLines*, genera una excepción si el *path* al archivo no existe (u otro error de entrada/salida). Con lo cual podríamos decir que si el método es ejecutado con éxito, retorna un *String* válido.
+
+Supongamos ahora que queremos saber si el nombre del archivo existe, y en caso de que exista traernos su contenido. Podríamos modificar la implementación de la siguiente forma:
+
+{caption: "null indica que el archivo no existe"}
+```java
+public String content(String nombre) throws IOException {
+ Objects.requireNonNull(nombre);
+ Path path = Paths.get(nombre);
+ if(!Files.exists(path))
+  return null;
+ List<String> lineas = Files.readAllLines(Paths.get(nombre));
+ return String.join(" ", lineas);
+}
+```
+Si retornamos *null* a modo de indicar que el archivo no existe, deberíamos incorporarlo a la documentación (que *null* significa que el archivo no existe) y el código cliente debe ser escrito de forma tal de salvar dicha situación, como se muestra a continuación:
+
+{caption: "verificar la posibilidad de un null como respuesta"}
+```java
+String contenido = disco.content("nombre.txt");
+if(contenido != null) {
+ //hacer algo con contenido...
+}
+```
+
+Deberíamos evitar tener que incorporar a la documentación de un método este tipo de cuestiones, y escribir código de forma tal que permita que la _firma_ _del_ _método_ sea _suficiente_ _información_ para el cliente. Tampoco deberíamos retornar *null*, no es una buena práctica, termina generando bugs o llenado el código cliente de chequeos. Tony Hoare, el creador del *null* (entre otras cosas como Algol 60 y el algoritmo quicksort), dijo: "I call it my billion-dollar mistake".
+
+#### ¿Qué alternativas tenemos hoy para no retornar null?
+
+##### Fail Fast
+Una opción es generar una excepción si no vamos a poder devolver un objeto válido. Así quedaría el método implementando esta opción:
+{caption: "ejemplo utilizando fail fast"}
+```java
+public String content(String nombre) throws IOException {
+ Path path = Paths.get(nombre);
+ if(!Files.exists(path))
+  throw new IllegalArgumentException("El nombre ingresado...");
+ List<String> lineas = Files.readAllLines(Paths.get(nombre));
+ return String.join(" ", lineas);
+}
+```
+Esta opción nos llevaría a escribir el código cliente de esta forma:
+
+{caption: "código cliente para fail fast"}
+```java
+try {
+ String contenido = disco.content("nombre.txt");
+ //hacer algo con contenido...
+} catch (IllegalArgumentException e) {
+ //hacer algo cuando no existe el archivo
+}
+```
+Esto complica el código cliente, lo hace menos legible al incorporar la estructura sintáctica *try*/*catch* en cuestiones que no son excepcionales. Por otro lado la interfaz del método no nos lo informa, sino que deberíamos incorporarlo en la documentación y como clientes de *Disco* tener que destinar tiempo a leerlo.
+
+##### Tester / Doer
+Existe una técnica denominada Tester/Doer la cual sugiere realizar una verificación (Tester) de una entrada antes de utilizar la entrada para realizar una tarea específica (Doer). Para nuestro ejemplo, esto requeriría agregar un método más a la clase Disco que permitirá verificar si el archivo existe o no.
+
+{caption: "tester/doer"}
+```java
+class Disco {
+ ...
+ public boolean exists(String nombre) {
+  Path path = Paths.get(nombre);
+  if(!Files.exists(path)) {
+   return false;
+  }
+  return true;
+ }
+ ...
+}
+```
+
+De esta forma el código cliente se escribiría así:
+
+{caption: "código cliente para tester/doer"}
+```java
+if(disco.exists("nombre.txt")) {
+ String contenido = disco.content("nombre.txt");
+ //hacer algo con contenido...
+}
+```
+
+Esta forma de implementación es simple, pero tiene dos problemas. El primero es que el cliente debe saber que requiere realizar este chequeo antes. El segundo problema y más importante, es que no es *thread* *safe*. En un ambiente multi-usuario, podríamos tener un thread por leer el contenido del archivo, y otro que lo haya borrado justo después que el primero ya ha realizado la consulta de existencia.
+
+##### Optional / Maybe
+
+Otra alternativa más interesante, agregada en Java a partir de la versión 8, es utilizar *Optional*. *Optional* es una abstracción existente en varios lenguajes de programación (*Option* en Scala, *Maybe* en C# y Haskell para dar algunos ejemplos) que encapsulan un valor y ofrecen una API para trabajar con él. Veamos como queda la implementación a continuación:
+
+{caption: "optional / maybe"}
+```java
+class Disco {
+ ...
+ public Optional<String> content(String nombre) throws IOException {
+  Path path = Paths.get(nombre);
+  if(!Files.exists(path))
+   return Optional.empty();
+  List<String> lineas = Files.readAllLines(Paths.get(nombre));
+  return Optional.of(String.join(" ", lineas));
+ }
+}
+```
+¿Como se lee la firma ahora? El método *content* recibe un *String* como parámetro y "opcionalmente" retorna un *String* válido. Esto quiere decir que puede no retornarlo. Veamos como quedaría el código cliente, viendo las facilidades que provee *Optional*:
+
+{caption: "código cliente para optional/maybe"}
+```java
+Optional<String> hayContenido = diskFile.content("nombre.txt");
+hayContenido.ifPresent((contenido) -> System.out.println(contenido));
+```
+
+En este caso estamos utilizando *Optional*#*ifPresent* el cual ejecuta la expresión lambda que recibe como parámetro si *hayContenido* tiene un *String* válido. Si no lo contiene, la ejecución continúa justo después. Otra opción interesante se muestra a continuación:
+
+{caption: "otra opción de código cliente para optional/maybe"}
+```java
+Optional<String> hayContenido = diskFile.content("nombre.txt");
+System.out.println(hayContenido.orElse("El Archivo no se encuentra..."));
+```
+
+Aquí utilizamos *Optional*#*orElse* que devuelve un objeto del mismo tipo que debería contener *Optional*, en caso de que *hayContenido* no contesta un *String* válido. En el ejemplo estamos retornando un *String* con el mensaje de que el archivo no se encuentra en el disco. Existen más opciones que se pueden revisar estudiando la API de *Optional*.
+
+La opción que _no_ deberíamos utilizar como clientes, pese a que esta disponible, es la siguiente:
+{caption: "un mal uso de optional/maybe"}
+```java
+Optional<String> hayContenido = disco.content("nombre.txt");
+if (hayContenido.isPresent()) {
+ System.out.println(hayContenido.get());
+}
+```
+Ésta forma de utilizar *Optional* no difiere en nada a preguntar por si es *null* o no. Con lo cual posee los mismos inconvenientes enunciados anteriormente. _No_ _sobreutilizar_ _Optional/Maybe_. Solo es útil realmente en este tipo de situaciones, en ninguna otra.
+
+#### ¿Qué pasa cuando retornamos colecciones?
+
+Supongamos ahora que agregamos el siguiente método a la clase Disco, que retorna una lista de ubicaciones con todos los archivos que se encuentran en el disco:
+
+```java
+public List<String> archivos() {
+ ...
+}
+```
+
+La duda que se nos puede plantear es qué deberíamos retornar en caso de que no existan archivos en el disco. ¿Retornamos *null*? Si lo hacemos, nuevamente tenemos los mismos problemas mencionados anteriormente, el cliente debe recordar que debe verificar el caso de que se devuelva *null*. En cambio, deberíamos devolver la _colección_ _vacía_. Observemos cómo quedaría el código cliente si retornamos *null*:
+
+{caption: "requiere verificación de null"}
+```java
+List<String> archivos = disco.archivos();
+if (archivos != null) {
+	archivos.stream().forEach((s) -> System.out.println(s));
+}
+```
+
+Y retornando una lista vacía:
+
+{caption: "sin requerir verificación de null"}
+```java
+disco.archivos().stream().forEach((s) -> System.out.println(s));
+```
+**No** es una opción aquí utilizar *Optional*, ya que no haríamos más que requerirle al cliente utilizar la API de *Optional* donde en definitiva termina escribiendo más líneas de código que si retornáramos una lista vacía.
+
+### Alinear código a la izquierda
+
+En el catálogo de refactoring[^^refcatalog] podemos encontrar varias recomendaciones para escribir código más elegante. De todas ellas, hay una en particular que siempre me pareció esencial. Observemos el siguiente ejemplo de código:
+
+{caption: "Código sin alinear"}
+```java
+class Dni {
+ private String dni;
+ ...
+ public Dni(String dni) {
+  if (dni != null) {
+   if (!dni.isEmpty()) {
+    if (lenPermitido(dni)) {
+     if (todosNumeros(dni)) {
+      this.dni = dni;
+     } else {
+      throw new IllegalArgumentException("Debe ingresar números solamente");
+     }
+    } else {
+     throw new IllegalArgumentException("El largo del dni no puede ...");
+    }
+   } else {
+    throw new IllegalArgumentException("Dni no puede ser vacío");
+   }
+  } else {
+   throw new IllegalArgumentException("Dni no puede ser nulo");
+  }
+ }
+
+ private boolean lenPermitido(String dni) {
+  ...
+ }
+
+ private boolean todosNumeros(String dni) {
+  ...
+ }
+ ...
+}
+```
+Esta forma de escribir código con una profundidad de indentación tan grande (más de una ya es molesto) lo hace terriblemente poco legible. Para mejorarlo, hay que justificarlo a la izquierda, invirtiendo las condiciones de los *if*s, como se muestra a continuación:
+
+{caption: "Código justifiado a la izquierda"}
+```java
+class Dni {
+ private String dni;
+ ...
+ public Dni(String dni) {
+  if (dni == null)
+   throw new IllegalArgumentException("Dni no puede ser nulo");
+  if (dni.isEmpty())
+   throw new IllegalArgumentException("Dni no puede ser vacío");
+  if (!lenPermitido(dni))
+   throw new IllegalArgumentException("El largo del dni no puede ...");
+  if (!todosNumeros(dni))
+   throw new IllegalArgumentException("Debe ingresar números solamente");
+
+  this.dni = dni;
+ }
+
+ private boolean lenPermitido(String dni) {
+  ...
+ }
+
+ private boolean todosNumeros(String dni) {
+  ...
+ }
+ ...
+}
+```
+Como se puede apreciar es notable la diferencia que se obtiene. Se pueden encontrar otros ejemplos interesantes en éste mismo sentido en el catálogo[^^refcondf][^^refconds].
+
+## Más Objetos
+
+Muchas veces el lenguaje que utilizamos nos provee de objetos que reutilizamos, con esto ganamos tiempo y además sabemos que están testeados, funcionan. Un ejemplo de estos objetos en Java es *java*.*time*.*LocalDate*. Veamos como podría utilizar éste objeto con el siguiente ejemplo. Supongamos la siguiente clase *Persona* donde, entre otros parámetros para crear una instancia, se requiere la fecha de nacimiento.
+
+{caption: "Creando instancias de LocalDate"}
+```java
+class Persona {
+ ...
+ public Persona(..., String fechaNacimiento) {
+  this.fechaNacimiento = LocalDate.parse(fechaNacimiento,
+                              DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+ }
+}
+```
+Encapsulamos *LocalDate* para modelar la fecha de nacimiento y utilizamos algunos de sus servicios para crear la instancia a partir de un *String*. Estas líneas de código dentro del constructor, muy rápidamente, avanzando en el desarrollo de nuestra aplicación, se vuelven a requerir en otras clases donde utilizo fechas. Y además para ser consistente en toda mi aplicación, el formato con el que espero los *String*s de fecha, quiero que sea el mismo. Por lo tanto debo también ubicar un lugar común para la constante "dd-MM-yyyy". Para ésto, creamos una clase *FechaUtil*:
+
+{caption: "Clase de utilidad"}
+```java
+class FechaUtil {
+ private static String defaultPattern = "dd-MM-yyyy";
+
+ public static LocalDate of(String fecha) {
+  return FechaUtil.of(fecha, defaultPattern);
+ }
+
+ public static LocalDate of(String fecha, String pattern) {
+  return LocalDate.parse(fecha, DateTimeFormatter.ofPattern(pattern));
+ }
+}
+```
+
+Y así, la clase *Persona* quedaría:
+
+{caption: "Creando instancias de LocalDate"}
+```java
+class Persona {
+ private LocalDate fechaNacimiento;
+ ...
+ public Persona(..., String fechaNacimiento) {
+  this.fechaNacimiento = FechaUtil.of(fechaNacimiento);
+ }
+ ...
+}
+```
+
+Esta forma de resolver la duplicidad de código, utilizando clases de utilidad con métodos estáticos, pertenece al paradigma procedural[^^yegorch32]. En el paradigma orientado a objetos, creamos _más_ _objetos_, nuevas abstracciones, como se muestra a continuación:
+
+{caption: "Objeto Fecha"}
+```java
+class Fecha {
+ private static String DEFAULT_PATTERN = "dd-MM-yyyy";
+ private LocalDate date;
+ private String pattern;
+
+ public Fecha(String fecha) {
+  this(Fecha.parse(fecha, DEFAULT_PATTERN), DEFAULT_PATTERN);
+ }
+
+ public Fecha(String fecha, String pattern) {
+  this(Fecha.parse(fecha, pattern), pattern);
+ }
+
+ private Fecha(LocalDate date, String pattern) {
+  this.date = date;
+  this.pattern = pattern;
+ }
+
+ @Override
+ public String toString() {
+  return this.date.format(DateTimeFormatter.ofPattern(this.pattern));
+ }
+
+ private static LocalDate parse(String fecha, String pattern) {
+  fecha = Objects.requireNonNull(fecha);
+  pattern = Objects.requireNonNull(pattern);
+  try {
+    return LocalDate.parse(fecha, DateTimeFormatter.ofPattern(pattern));
+  } catch (DateTimeParseException e) {
+    throw new IllegalArgumentException("Solo fechas con formato: " + pattern, e);
+  }
+ }
+}
+```
+
+Y así, la clase *Persona* quedaría:
+
+{caption: "Persona encapsulando Fecha"}
+```java
+class Persona {
+ private Fecha fechaNacimiento;
+ ...
+ public Persona(..., String fechaNacimiento) {
+  this.fechaNacimiento = new Fecha(fechaNacimiento);
+ }
+ ...
+}
+```
+
+Utilizando objetos obtengo sus beneficios, como el polimorfismo, que con clases de utilidad y métodos estáticos no tengo. Además, noten que *Persona* (y cualquier otra clase de mi aplicación que utilice fechas) ahora no esta acoplada *java*.*time*.*LocalDate*, que podría cambiar en el futuro con nuevas versiones de Java (recordemos que antes teníamos *java*.*util*.*Date* y fue deprecada). Si tuviera que reemplazar *LocalDate* por otra abstracción, el cambio impactaría sólo en *Fecha*.
+
+Similar a lo expuesto anteriormente, supongamos que queremos modelar un teléfono para *Persona*. En general haríamos lo siguiente:
+
+{caption: "Persona con teléfono como String"}
+```java
+class Persona {
+ private String telefono;
+ ...
+ public Persona(..., String telefono) {
+  if (!telefono.matches("\\d{4}[-\\s]\\d{8}"))
+	   throw new IllegalArgumentException("Esperamos aaaa-nnnnnnnn, "
+             + "donde aaaa es el código de área y nnnnnnnn es el número");
+
+  this.telefono = telefono;
+ }
+ ...
+}
+```
+
+Nuevamente, éstas validaciones podrían aparecer en otros objetos de nuestro modelo, con lo cual debemos quitar de alguna forma la duplicidad de código. En lugar de utilizar clases de utilidad como ya mencionamos, creamos nuevas abstracciones:
+
+{caption: "Objeto Teléfono"}
+```java
+class Telefono {
+ private Integer numero;
+ private Integer area;
+ private String separador;
+ private String telRegex = "\\d{4}[-\\s]\\d{8}";
+
+ public Telefono(String numero) {
+  if (!numero.matches(this.telRegex))
+   throw new IllegalArgumentException("Esperamos aaaa-nnnnnnnn, "
+           + "donde aaaa es el código de área y nnnnnnnn es el número");
+
+   this.area = Integer.valueOf(numero.substring(0, 4));
+   this.separador = numero.substring(4, 5);
+   this.numero = Integer.valueOf(numero.substring(5, numero.length()));
+ }
+
+ @Override
+  public String toString() {
+   return this.area + this.separador + this.numero;
+ }
+}
+```
+
+Y así quedaría *Persona*:
+
+{caption: "Persona con teléfono como String"}
+```java
+class Persona {
+ private Telefono telefono;
+ ...
+ public Persona(..., String telefono) {
+  this.telefono = new Telefono(telefono);
+ }
+ ...
+}
+```
+Noten cuán mas elegante es el código de esta forma. Utilizar tipos primitivos (como *String* en Java) para modelar abstracciones más complejas (o sea, con comportamiento adicional a lo que el tipo primitivo ofrece) es una mala práctica denominada "obsesión por los primitivos"[^^primitiveob][^^refactorprimitive].
+
+## Herencia
+
+### Modelado Conceptual y Reuso de Código
+
+Existe una gran confusión en torno a cuando es correcto utilizar la herencia por sobre otros mecanismos de reuso de código como la composición. La herencia tiene un doble propósito, conceptual y de implementación. Por el lado conceptual, permite modelar jerarquías de conceptos desde genéricos a más especializados, siempre y cuando ésto exista en aquella realidad que intentamos modelar. Por el lado implementativo, la herencia permite reutilizar código, o sea, aquellos métodos definidos en las superclases están disponibles en las subclases con la opción además de incrementar su funcionalidad (redefinirlo en la subclase y hacer algo más de lo que ya hacía). Cuando uno utiliza la herencia _sin_ _tener_ _en_ _cuenta_ _el_ _propósito_ _conceptual_, es cuando se generan diseños malos. Tal es así, que se ha creado un principio donde se recomienda a los desarrolladores favorecer el uso de la composición por sobre la herencia[^^gamma][^^bloch][^^thoughtworks], debido a que en general es muy común utilizar la herencia con el único propósito de reutilizar código.
+
+Bárbara Liskov y Jeannette Wing[^^liskovPaper] definieron una forma matemática de determinar cuando una relación de herencia esta bien utilizada o no. Ésto fue luego tomado por Robert C. Martin quien escribió y popularizó el principio de diseño llamado Liskov Substitution Principle (LSP)[^^martin], el cual intenta explicar en términos no formales de qué se trata lo desarrollado por Liskov y Wing.
+El principio LSP dice lo siguiente: "Las clases deben poder sustituirse por sus subclases sin que sus clientes lo noten". ¿Qué han querido decir con esto?
+
+Supongamos el siguiente ejemplo de Herencia:
+
+{caption: "Usando la herencia por motivos de implementación únicamente"}
+```java
+class Cursos extends HashMap<String, String> {
+ public void agregarCurso(String nombre, String contenido) {
+  put(nombre, contenido);
+ }
+
+ public String contenido(String nombre) {
+  return get(nombre);
+ }
+
+ @Override
+ public String put(String key, String value) {
+  throw new RuntimeException("No está permitido utilizarlo en Cursos");
+ }
+
+ @Override
+ public String get(Object key) {
+  throw new RuntimeException("No está permitido utilizarlo en Cursos");
+ }
+ ... //otros métodos de HashMap que debemos anular...
+}
+```
+
+Aquí estoy implementando una clase *Cursos* que provee servicios para almacenar y recuperar cursos online. Para facilitar su implementación "*extiendo*" a *HashMap*. Sin embargo, *HashMap* provee a *Cursos* de servicios que no deseo que mis clientes utilicen, entonces debo _anularlos_ sobre-escribiéndolos, lanzando una excepción si son utilizados.
+
+Y ahora veamos el siguiente código cliente:
+
+```java
+class UnCliente {
+ void m(HashMap h) {
+  h.get(aKey);
+ }
+}
+```
+
+El método *UnCliente*#*m*(*HashMap*), podría recibir una instancia de *HashMap* o una instancia de *Cursos* para luego invocar a *get*(*aKey*). ¿El cliente notaría alguna diferencia si recibiera una instancia de *Cursos*, en lugar de recibir una instancia de *HashMap*? _Claro que sí_, dado que la invocación a *get* generaría una *RuntimeException* en lugar de retornar un *String*. A esto se refiere el principio LSP y aquí con toda seguridad la composición es la mejor opción para reutilizar los servicios que nos ofrece *HashMap*.
+
+Para que los clientes no noten diferencias, según tratan con subclases o clases padres, la subclase debe _comportarse_ _como_ la superclase. Si decimos (y podemos verificar de alguna forma) que una subclase cualquiera _se_ _comporta_ _como_ su superclase entonces estamos ante un buen uso de la herencia, garantizando un uso conceptual y no meramente implementativo. Avancemos para comprender mejor esto. Veamos otro ejemplo, ahora construyendo un *Conjunto* extendiendo de una *Lista*.
+
+{caption: "La clase Conjunto hereda de Lista"}
+```java
+class Lista {
+ data = new Array();
+
+ public Integer size() {
+  return data.length;
+ }
+
+ public add(Integer n) {
+  data[data.length] = n;
+ }
+}
+
+class Conjunto extends Lista {
+ @Override
+ public add(Integer n) {
+  if (data.notContains(n)) {
+    super.add(n);
+  }
+ }
+}
+
+```
+¿*Conjunto* se _comporta_ _como_ *Lista*? Acá tenemos que hacer un análisis algo más fino. Si llamo a *Lista*#*add*(n) y *Conjunto*#*add*(n), no obtengo el mismo comportamiento _para_ _ciertos_ _casos_, porque *Conjunto* no admite duplicados mientras que *Lista* sí.
+
+Para verlo más claro aún revisemos el siguiente test (o código cliente):
+{caption: "Test para develar el mal uso de la herencia"}
+```java
+list = new Lista(); //y si fuera, new Conjunto(); ?
+list.add(10);
+list.add(10);
+assertEquals(2, list.size());
+```
+Este test pasa si *list* es una instancia de *Lista*, pero no pasa si fuera una instancia de *Conjunto*. Con lo cual podemos notar que #*add*(n) no se comporta igual en ambas clases, incumpliendo también acá el principio LSP.
+
+Veamos ahora el clásico ejemplo utilizado por Robert C. Martin sobre LSP. Supongamos la siguiente clase *Rectangulo* y extendiendo de ella *Cuadrado*:
+
+{caption: "Cuadrado extendiendo de Rectángulo"}
+```java
+class Rectangulo {
+ private double alto;
+ private double ancho;
+
+ public void setAncho(double ancho) {
+  this.ancho = ancho;
+ }
+
+ public void setAlto(double alto) {
+  this.alto = alto;
+ }
+
+ public double area() {
+  return alto * ancho;
+ }
+}
+
+class Cuadrado extends Rectangulo {
+
+ public void setAncho(double ancho) {
+  super.setAncho(ancho);
+  super.setAlto(ancho);
+ }
+
+ public void setAlto(double alto) {
+  super.setAncho(alto);
+  super.setAlto(alto);
+ }
+}
+```
+Este ejemplo es interesante porque realmente decimos que un Cuadrado **es-un** Rectángulo[^es-un], pero como relación de herencia e implementado de esta forma _no_ lo es, dado que *Cuadrado* no se comporta como *Rectangulo*. Por esto decimos que la relación de herencia tiene que ver con comportamiento e insistimos en utilizar la frase "se comporta como" en lugar de "es-un".
+
+Veamos ahora el siguiente test (o código cliente):
+
+{caption: "Test verificando herencia"}
+```java
+r = new Rectangulo();
+r.setAlto(5);
+r.setAncho(4);
+assertEquals(r.area(), 20);
+```
+
+Si *r* fuera una instancia de cuadrado éste test no pasaría. De esta forma podríamos decir que un *Cuadrado* _no_ _se_ _comporta_ _como_ un *Rectángulo* violando el principio LSP.
+
+[^es-un]: La relación de herencia entre dos clases suele denominarse relación "es-un". Uno tenia que realizar esa pregunta para poder entender si la herencia la estaba utilizando de forma correcta. Pero deberíamos utilizar la relación "se comporta como" y la definición de LSP para determinar esto.
+
+### Definamos con más precisión LSP
+
+La forma de determinar si un método sobre-escrito en una subclase se _comporta_ _como_ el método de la superclase, es revisando sus **precondiciones** y **postcondiciones**. Las precondiciones son aquellas condiciones que deben cumplirse para poder invocar al método. Las postcondiciones son aquellas condiciones que se cumplen luego de terminada la ejecución del método (asumiendo que se cumplió la precondición), por ejemplo propiedades sobre los parámetros de salida o propiedades sobre el estado interno del objeto.
+
+Un método *m*() redefinido en una subclase *B*, se _comporta_ _como_ *m*() definido en su superclase *A*, si:
+1. La precondición de *m*() en *B* es **más** **débil** o igual que la definida en *A*. Lo que expresado en lógica sería: pre(superclase) => pre(subclase). En otras palabras, lo mismo que necesito para invocar al método de la superclase, es lo que necesito (o menos también) para invocar al mismo método de la subclase.
+2. La postcondición de *m*() en *B* es **más** **fuerte** o igual que la definida en *A*. Lo que expresado en lógica sería: pre(superclase) && post(subclase)) => post(superclase). En otras palabras, cuando la invocación al método de la subclase termina, la postcondición de la superclase debe cumplirse.
+
+Repasemos ahora las precondiciones y postcondiciones de los ejemplos vistos anteriormente.
+
+{caption: "pre y post de Cursos y HashMap"}
+```java
+//pre: -
+//post: retorna el valor v asociado a la clave k, si k existe, null si no existe.
+HashMap.get(Object k)
+//pre: -
+//post: lanza una excepción
+Cursos.get(Object k)
+```
+Las precondiciones de ambos métodos son iguales, pero las postcondiciones no. Claramente podemos observar que cuando la postcondición "lanza una excepción" de *Cursos*#*get* es verdadera no hace que la postcondición de *HashMap*#*get* sea verdadera también. Haciendo que la implicación lógica sea falsa. Analicemos ahora el ejemplo de la *Lista* y el *Conjunto*.
+
+{caption: "pre y post de Conjunto y Lista"}
+```java
+//pre: Un entero válido
+//post: datos == datos.anterior U [n].
+Lista.add(n)
+//pre: Un entero válido
+//post: datos == datos.anterior U [n] sii [n] no existe en datos.anterior
+Conjunto.add(n)
+```
+La precondición son iguales en ambos métodos. La postcondición en *Conjunto*.*add* "datos.anterior U [n] sii [n] no existe en datos.anterior" _no_ _implica_ la postcondición de *Lista*.*add* "datos.anterior U [n]". Para los casos donde [n] existe la postcondición en *Lista*.*add* no se cumple, haciendo falsa la implicación. Analicemos ahora las precondiciones y postcondiciones de Rectángulo y Cuadrado:
+
+{caption: "pre y post de Cuadrado y Rectángulo"}
+```java
+//pre: Un double válido
+//post: this.alto == alto && ancho == ancho.anterior
+Rectangulo.setAlto(alto)
+//pre: Un double válido
+//post: this.alto == alto && ancho == alto
+Cuadrado.setAlto(alto)
+```
+
+Nuevamente, cuando la postcondición en *Cuadrado*#*setAlto*(alto) es verdadera, ésta no hace que la postcondición en *Rectangulo*#*setAlto*(alto) sea verdadera también, haciendo falsa la implicación. Finalmente, veamos un ejemplo donde cumplimos con el principio LSP:
+
+{caption: "Cumpliendo con LSP"}
+```java
+class List {
+ data = new Array();
+
+ public Integer size() {
+  return data.length;
+ }
+
+ public add(Integer n) {
+  data[data.length] = n;
+ }
+}
+
+class CantidadParesList extends List {
+ private int pares = 0;
+
+ @Override
+ public add(Integer n) {
+  super.add(n);
+  if (n % 2 == 0) {
+   this.pares++;
+  }
+ }
+}
+```
+{caption: "pre y post de CantidadParesList y List"}
+```java
+//pre: Un entero válido
+//post: datos == datos.anterior U [n].
+List.add(n)
+//pre: Un entero válido
+//post: datos == datos.anterior U [n]
+//post: && pares == pares.anterior + 1 sii n es par
+CantidadParesList.add(n)
+```
+
+Cada vez que la postcondición de *CantidadParesList*.*add*(n) sea verdadera, siempre será verdadera la postcondición de *List*.*add*(n), haciendo verdadera la implicación. Esto se puede observar claramente en la implementación, ya que ambos métodos _siempre_ incrementan el tamaño del array encapsulado, además de esto, la subclase lleva un contador con la cantidad de enteros que son par. Aquí se observa como *CantidadParesList*#*add*(n), realmente _extiende_ el comportamiento de *List*.*add*(n), sin modificarlo.
+
+Esto nos deja la conclusión de que la herencia bien utilizada es aquella donde **extendemos** realmente a la superclase. O sea, todo lo de la superclase nos sirve (así tal cual esta), pero **ademas** necesito agregar cierta funcionalidad, necesito _extender_ la funcionalidad de la superclase. Esto ahora hace más evidente aún, el _pésimo_ uso de la herencia que hacemos cuando _suprimimos_ funcionalidad de la superclase, como lo que mostramos en el ejemplo de la clase *Cursos*.
+
+## Binding Dinámico (y Polimorfismo)
+
+Luca Cardelli y Peter Wegner[^^cardeli] distinguen lenguajes monomórficos donde las funciones, procedimientos y sus operadores tiene un único *tipo*. Mientras que en los lenguajes polimórficos los valores y variables pueden tener más de un único *tipo*. Además clasifican el polimorfismo en diferentes formas, la forma ad-hoc como la sobre-carga de funciones, métodos y procedimientos. Y luego tenemos la forma universal que incluye el polimorfismo paramétrico (templates en C++ o tipos genéricos en Java) y el polimorfismo de inclusión (subtipos y herencia). Una función, procedimiento o método polimórfico universal puede potencialmente trabajar con un número infinito de tipos mientras que una función, procedimiento o método polimórfico ad-hoc puede trabajar con un numero finito de tipos. Es importante aclarar que esta clasificación toma más sentido en lenguajes tipados en compilación. Los lenguajes tipados en ejecución son naturalmente polimórficos. En la sección anterior sobre Herencia, trabajamos en su totalidad con el polimorfismo de inclusión según la categorización de Cardelli y Wegner.
+
+Hay mucha bibliografía sobre polimorfismo y binding dinámico, sin embargo en este libro me interesa rescatar la posibilidad que éstos recursos nos brindan para mejorar la _evolución_ y _mantenimiento_ del software. ¿Se imaginan implementando funcionalidades nuevas en una aplicación sin tocar clases existentes, sino agregando clases nuevas? El principio Open-Close de SOLID, justamente habla de que se debe incorporar clases nuevas para agregar funcionalidad nueva sin modificar las existentes (principio originalmente mencionado por Bertrand Mayer[^^mayerch3]).
+
+Observemos el siguiente fragmento de código:
+
+{caption: "if clásico del paradigma procedural/imperativo"}
+```java
+if (auto.esGamaBaja()) {
+ this.calcularGamaBaja(auto);
+} else if (auto.esGamaMedia()) {
+ this.calcularGamaMedia(auto);
+} else if(auto.esGamaAlta()) {
+ this.calcularGamaAlta(auto);
+}
+```
+
+Ahora, si esto mismo lo escribimos aprovechando el binding dinámico (y el polimorfismo), el código cliente quedaría tan simple como:
+
+{caption: "remuevo el if"}
+```java
+auto.precio();
+```
+
+{caption: "jerarquía polimórfica"}
+```java
+class Auto {
+ ...
+ public float precio() {
+  this.gama.calcular(this);
+ }
+}
+
+class GamaBaja extends Calculo {
+ ...
+ public float calcular(auto) {
+  ...
+ }
+}
+
+class GamaMedia extends Calculo {
+ ...
+ public float calcular(auto) {
+  ...
+ }
+}
+
+class GamaAlta extends Calculo {
+ ...
+ public float calcular(auto) {
+  ...
+ }
+}
+```
+
+Ustedes podrían decir que ahora tenemos más lineas de código. Sí, es cierto, pero en principio podría decir que ahora tengo objetos cohesivos simples, que pueden ser testeados en forma independiente. Pero _lo_ _más_ _importante_ de todo esto es que si necesitamos agregar alguna otra gama o combinación de alguna incorporando promociones por ejemplo, no necesito modificar código existente sino que _agregando_ _clases_ _nuevas_ puedo dar solución al nuevo requerimiento. Esto es el _máximo_ que le podemos pedir a un diseño, porque de esta forma no correríamos el riesgo de introducir errores (bugs) en funcionalidades existentes. Como sería el código cliente para averiguar el precio de un auto con gama media:
+
+{caption: "Método Main"}
+```java
+unAuto = new Auto(...,
+          new GamaMedia(...));
+unAuto.precio();
+```
+
+Supongamos que ahora queremos lanzar una promoción para la gama media de autos. Una opción sería crear una clase *GamaMediaConPromo* y de esta forma estaríamos dando solución al nuevo requerimiento sin modificar clases existentes. Otra opción para solucionarlo es utilizando el patrón Decorador[^^gammadec]. Creamos una clase *Promocion* que se componga y extienda de *Calculo*. Quedando el código cliente algo así:
+
+{caption: "Método Main, con decorador para resolver la promoción"}
+```java
+otroAuto = new Auto(...,
+            new Promocion(...,
+             new GamaMedia(...)));
+```
+Observemos que damos solución al nuevo requerimiento creando clases nuevas, sin modificar clases existentes.
+
+## Expresiones Lambda
+
+Pese a que Java incorporó las expresiones lambda en su versión 8, ya existían desde mucho tiempo antes en lenguajes como Smalltalk, entre otros principalmente con tipado dinámico. Las expresiones lambda nos permiten _pasar_ _por_ _parámetro_ _bloques_ _de_ _código_ y esto nos permite remover código duplicado que de otra manera sería imposible.
+
+### Remover Código Duplicado: Ejemplo 1
+
+Comencemos revisando un ejemplo muy simple. Supongamos los siguientes dos bloques de código:
+
+{caption: "Encontrar números pares en una lista"}
+```java
+var enteros = List.of(1, 2, 3, 4);
+var pares = new ArrayList<>();
+for (Integer entero : enteros) {
+ if (entero % 2 == 0) {
+  pares.add(entero);
+ }
+}
+//trabajar con pares
+```
+{caption: "Encontrar nombres que conmienzan con E"}
+```java
+var nombres = List.of("Javier", "Lucía", "Enrique", "Nicolás");
+var comienzanCon = new ArrayList<String>();
+
+for (String nombre : nombres) {
+ if (nombre.startsWith("E")) {
+  comienzanCon.add(nombre);
+ }
+}
+//trabajar con comienzanCon
+```
+
+Por un lado tenemos un bloque de código que nos permite encontrar números pares en una lista para guardarlos en otra, y por otro lado tenemos otro bloque de código que nos permite encontrar nombres de personas en una lista que empiezan con la letra "E". Si observamos detenidamente, existe bastante código duplicado entre ambos bloques. Lo único que difiere es el tipo de datos de la lista que recorremos y la condición que se evalúa para generar la lista con el resultado. Refactoricemos para eliminar el código duplicado, para lo cual deberíamos _parametrizar_ la _condición_. Lo hacemos de la siguiente forma:
+
+{caption: "parametrizando la condición"}
+```java
+class UnaClase {
+ ...
+ public List<T> filtrar(List<T> lista, Condicion<T> unaCondicion) {
+  var resultado = new ArrayList<T>();
+  for (T t : lista) {
+   if (unaCondicion.evaluar(t)) {
+    resultado.add(t);
+   }
+  }
+  return resultado;
+ }
+ ...
+}
+```
+Observemos que la condición se recibe por parámetro y se evalúa para incorporar o no cada elemento en la lista resultado. Ahora, éste método no compila, ya que debemos definir el tipo *Condicion*<T> utilizando una interfaz.
+
+```java
+interface Condicion<T> {
+ boolean evaluar(T t);
+}
+```
+
+Ahora lo que resta es el código cliente que invoca al método filtrar, para ello tenemos que implementar la interfaz *Condicion*. Previo a Java 8 esto se podía realizar utilizando clases anónimas para no tener que crear un clase nueva, darle un nombre, etc.
+
+{caption: "Parametrizando la condición con clases anónimas"}
+```java
+...
+ob.filtrar(unaLista, new Condicion<String>() {
+ public boolean evaluar(String t) {
+  return t.startsWith("E");
+ }
+});
+
+...
+ob.filtrar(otraLista, new Condicion<Integer>() {
+ public boolean evaluar(Integer t) {
+  return t % 2 == 0;
+ }
+});
+```
+De esta forma estoy invocando al método *filtrar* pasandole por parámetro la implementación de *Condicion*<T>. Así pudimos remover el código duplicado con la estructura *for*/*if* refactorizados en un método. Ahora, el código cliente es bastante verboso. Para aliviar esto, entre otras cosas, Java 8 incorporó las expresiones lambda. Veamos el mismo ejemplo pero utilizándolas.
+
+{caption: "Parametrizando la condición con expresiones lambda"}
+```java
+...
+ob.filtrar(unaLista, t -> { return t.startsWith("E");});
+
+...
+ob.filtrar(unaLista, t -> { return (t % 2 == 0);});
+```
+Como podemos observar, las expresiones lambda en este caso nos proveen de un _recurso_ _sintáctico_ que nos permite escribir lo mismo que hicimos con clases anónimas pero de forma simplificada. Si observamos la estructura de la expresión lambda, a la izquierda de *->* tenemos *t* que es el parámetro del método *Condicion*#*evaluar* y a su derecha la implementación del método *Condicion*#*evaluar*. Las expresiones lambda, al igual que las clases anónimas, necesitan de una interfaz para tiparlar (verificar su tipo en compilación). La única diferencia es que las interfaces para una expresión lambda debe tener un único método (denominadas Interfaces Funcionales). Además, para no tener que generar nosotros las interfaces, Java nos provee unas cuantas útiles en el paquete *java*.*util*.*function*. Éste mismo ejemplo lo podríamos haber escrito utilizando la interfaz *java*.*util*.*function*.*Function* en lugar de haber utilizado una propia, *Condicion*. Por otro lado, el método *filtrar* tampoco sería necesario ya que Java 8 provee de métodos que nos permiten aplicar expresiones lambda en colecciones, con lo cual directamente el código cliente seria así:
+
+{caption: "Utilizando expresiones lambda en colecciones"}
+```java
+...
+unaLista.stream().filter(t -> {
+                 return t.startsWith("E");}).collect(Collectors.toList());
+...
+ob.filtrar(unaLista, t -> { return (t % 2 == 0);});
+```
+*Streams*, incorporado en Java 8 también, nos permiten manipular colecciones en forma declarativa. Es la idea de este libro, en este caso, mostrar los principales beneficios de éstas construcciones sintácticas intentando ser lo mas independiente del lenguaje posible. Si desean profundizar más sobre streams y expresiones lambda en Java pueden leer[^^javaeight].
+
+### Remover Código Duplicado: Ejemplo 2
+
+En Java, y varios otros lenguajes de programación, cualquier tipo de conexión de base de datos que establezcamos necesita ser cerrada y esto es responsabilidad del código cliente. Por este motivo existen las construcciones sintácticas *try*/*catch*/*finally*, ésta última especialmente nos permite realizar operaciones de cierre y liberación de recursos de forma segura. De esta forma si quisiéramos persistir una entidad cualquiera deberíamos escribir algo así:
+
+{caption: "try/catch/finally"}
+```java
+class ... {
+ public void ejemploPersistir(...) {
+  try {
+   var db = this.db.open();
+
+   UnaEntidad entidad = new UnaEntidad(...);
+   db.persist(entidad);
+
+   db.commit();
+  } catch (Exception e) {
+   db.rollback();
+   throw new RuntimeException(e);
+  } finally {
+   db.close();
+  }
+ }
+}
+```
+La estructura o template *try*/*catch*/*finally* combinada con el *open*/*commit*/*rollback*/*close* deberíamos duplicarla en cada método que requiera algún tipo de interacción con la base de datos. Como vimos en el ejemplo anterior, ésto lo podemos evitar _parametrizando_ _bloques_ _de_ _código_. Para ello podríamos escribir algo así:
+
+{caption: "Parametrizando estructura de acceso a la base de datos"}
+```java
+class ... {
+ public void ejecutar(UnBloqueDeCodigo codigoAEjecutar) {
+ try {
+  var db = this.db.open();
+
+  codigoAEjecutar.ejecutar(db);
+
+  db.commit();
+ } catch (Exception e) {
+  db.rollback();
+  throw new RuntimeException(e);
+ } finally {
+  db.close();
+ }
+}
+
+public interface UnBloqueDeCodigo {
+ void ejecutar(db);
+}
+```
+Allí logramos tener en un único lugar la estructura o template *try*/*catch*/*finally* combinada con el *open*/*commit*/*rollback*/*close*. Ahora, dicho método puede invocarse pasándole como parámetro lo que deseamos hacer en el contexto de una transacción. En este caso es persistir *UnaEntidad*:
+
+```java
+obj.ejecutar(db -> {
+   UnaEntidad entidad = new UnaEntidad(...);
+   db.persist(entidad);
+});
+```
+[^^yegorch11]: Elegant Objects (Volume 1), ch 1.1. Yegor Bugayento. yegor256.com. 2017.
+[^^yegorch12]: Elegant Objects (Volume 1), ch 1.2. Yegor Bugayento. yegor256.com. 2017.
+[^^yegorch32]: Yegor B. en Elegant Objects (Volume 1), dice que esta forma de programar es un triunfo del paradigma procedural.
+[^^west]: Object Thinking. David West, Microsoft Press, 2004.
+[^^mayerch3]: Object Oriented Software Construction 2ed, Ch 3. Bertram Mayer, Prentice Hall, 1997.
+[^^mayerch23]: Object Oriented Software Construction 2ed, Ch 23. . Bertram Mayer, Prentice Hall, 1997.
+[^^martin]: Agile Software Development, Principles, Patterns and Practices. Robert C Martin, Prentice Hall, 2003.
+[^^javaeight]: Java 8 in Action: Lambdas, streams, and functional-style programming. Raoul-Gabriel Urma, Mario Fusco, and Alan Mycroft, Mannig 2015.
+[^^bloch]: Effective Java (3rd Edition), Joshua Bloch. Addison-Wesley Professional, 2018.
+[^^thoughtworks]: Composition vs Inheritance, how to choose (https://www.thoughtworks.com/insights/blog/composition-vs-inheritance-how-choose). Steven Lowe, 2015.
+[^^java8]: Java 8 in Action: Lambdas, streams, and functional-style programming. Raoul-Gabriel Urma, Mario Fusco, and Alan Mycroft, Mannig 2015.
+[^^liskovPaper]: A behavioral notion of subtyping, Barbara H. Liskov (MIT), Jeannette M. Wing (CMU), ACM 1994.
+[^^gamma]: Design Patterns: Elements of Reusable Object-Oriented Software. Gang of Four. Addison-Wesley Professional, 1994.
+[^^gammadec]: Design Patterns: Elements of Reusable Object-Oriented Software. Capítulo 4. Addison-Wesley Professional, 1994.
+[^^semmanpl]: Encapsultation and Solid Pluralsight Course. Mark Seemann.
+[^^cardeli]: On Understanding Types, Data Abstraction, and Polymorphism. Luca Cardelli, Peter Wegner. 1985.
+[^^primitiveob]: https://refactoring.guru/smells/primitive-obsession
+[^^refactorprimitive]: https://refactoring.com/catalog/replacePrimitiveWithObject.html
+[^^refcatalog]: https://refactoring.com/catalog/
+[^^refcondf]: https://sourcemaking.com/refactoring/replace-nested-conditional-with-guard-clauses
+[^^refconds]: https://refactoring.com/catalog/replaceNestedConditionalWithGuardClauses.html

@@ -1,0 +1,244 @@
+# Frameworks, conceptos fundamentales
+
+Este capítulo presenta una introducción a los conceptos fundamentales de frameworks. El desarrollo de frameworks requiere comprender ciertos conceptos clave que no son solo importantes para escribir nuestros propios frameworks, sino también para comprender qué esta pasando cuando utilizamos un framework de un tercero. Por otro lado, los conceptos presentados aquí son la base para comprender como funcionan los plugins (utilizados en aplicaciones como Eclipse y Jenkins), los addons (aquellos que instalamos en los Browsers) y las arquitecturas con estilo de micro-kernel.
+
+Luego de presentar conceptos esenciales, realizaremos la implementación de dos frameworks "Hola Mundo", uno basado en la herencia y el mismo transformado para que sea basado en composición.
+
+## Definición
+
+El desarrollo de software fue evolucionando hacia encontrar cada vez mejores formar de reutilización de código. Antes del surgimiento del paradigma orientado a objetos la única forma de escribir piezas de software reutilizables era generando librerías de funciones o procedimientos. Con el paradigma orientado a objetos generamos piezas reutilizables escribiendo librerías de clases, como por ejemplo las colecciones de Java que podemos encontrar en el paquete *java*.*util*. Además, contamos con los Frameworks, quienes proveen un nivel adicional de reuso de código. Ofrecen un diseño abstracto y _parte_ de la implementación de una familia específica de aplicaciones, permitiéndole a programadores (los usuarios del framework) su reutilización para la construcción de su aplicación.
+
+Para dar una definición de framework, tomaremos la de Ralph Johnson, Brian Foote[^^drc]: "Un framework es un conjunto de clases que definen un diseño abstracto para una familia específica de aplicaciones". Un framework define el diseño de nuestra aplicación, las clases principales y el flujo de ejecución. Eventualmente, dentro del flujo de ejecución entre objetos del framework, éste delega en objetos de nuestra aplicación.
+
+## Librerías vs Frameworks
+
+Cuando en nuestra aplicación utilizamos una librería, es la aplicación quien controla el flujo de ejecución y eventualmente instancia e invoca a las clases de la librería. Veamos la siguiente figura:
+
+![Mi Aplicación utilizando una librería](yed/lib-app.png)
+
+Como se puede observar, mi aplicación completa incluye las clases propias (en la izquierda de la figura) junto a las clases de la librería (en la derecha de la figura). Las flechas indican dependencias en compilación (donde la flecha negra indica composición y la flecha blanca es herencia o implementación de interfaces). La clase *Main* es la que inicia la ejecución de mi aplicación, y eventualmente desde alguna de las clases de mi aplicación (*Bar* en la figura) instancio e invoco a las clases de la librería (*LibBar* en la figura).
+
+Cuando construimos nuestra aplicación a partir de un framework, como mencionamos, es el framework quien controla el flujo de ejecución con lo cual, lo primero que debemos hacer es instanciar el framework y delegar en él para que éste comienza la ejecución. Durante la ejecución, eventualmente, invocará a las clases propias de nuestra aplicación. A esto se lo denomina **inversión de control** y es la principal características que diferencia a los frameworks de las librerías. Veamos la siguiente figura:
+
+![Mi Aplicación construida a partir de un framework](yed/fw-app.png)
+
+Como se puede observar, mi aplicación completa incluye las clases propias (a la derecha de la figura) y las clases del framework (a la izquierda de la figura). Dentro de las clases del framework tenemos la clase *Start* quien inicia la ejecución del framework, para luego eventualmente invocar a las clases propias de mi aplicación (*FwFoo* invoca algún método de *Bar*). La línea punteada indica una dependencia en ejecución. No existe dependencia en compilación desde el framework hacia nuestra aplicación por supuesto, sino éste no podría ser reutilizable. Por otro lado, observemos que una clase propia de nuestra aplicación hereda de una clase del framework (*Bar* extiende o implementa a *FwBar*).
+
+## Puntos de extensión
+
+Los frameworks proveen de puntos de extensión (también llamados métodos de enganche) de modo de que los desarrolladores, usuarios del framework, puedan adecuarlo, extenderlo o modificarlo, implementando cuestiones específicas de su problemática. No hay ningún tipo de mecanismo nuevo o diferente que permita proveer dichos puntos de extensión. Éstos son posibles a través del binding dinámico y el polimorfismo. Un framework se compone de clases concretas y también de clases abstractas (o interfaces). Es a partir de éstas últimas que el programador puede "enganchar" sus clases concretas para *personalizar* el framework.
+
+El framework debe _documentar_ claramente cuales son y como se implementan los puntos de extensión que ofrece. El programador debe implementar solo las clases del framework documentadas para tal fin y no otras.
+
+## Frameworks basados en herencia vs en composición
+
+Aquellos frameworks cuyos puntos de extensión se implementan heredando ciertas clases del framework se los denomina frameworks de caja blanca. Mientras que aquellos frameworks cuyos puntos de extensión se implementan componiendo objetos se los denomina frameworks de caja negra.
+
+Para entender los conceptos presentados, como hemos dicho antes, escribiremos dos frameworks "Hola Mundo" en Java. Primero lo implementaremos utilizando la herencia como mecanismo de personalización y luego lo transformaremos para que la personalización se realice utilizando composición.
+
+El framework que desarrollaremos permite a los programadores imprimir mensajes en pantalla sobre una ventana modal. Para ello utilizaremos clases de Java Swing. La clase principal del framework contiene comentarios con la documentación del framework, o sea, como éste se personaliza y como es instanciado.
+
+### Frameworks basados en herencia
+
+Comencemos entonces con la implementación del framework basado en herencia. La siguiente es la clase principal del framework, la que inicia el flujo de ejecución.
+
+{caption: "Clase principal del framework"}
+```java
+/* Este framework permite mostrar texto en la pantalla.
+ *
+ * Para usarlo, Usted tiene que extender de Screen. Luego, cree una instancia
+ * de Start pasando por parámetro la instancia de la clase de su aplicación
+ * que extiende a Screen. Finalmente, invoque al método Start#init().
+ **/
+class Start {
+ private Screen s;
+
+ public Start(Screen s) {
+  this.s = s;
+ }
+
+ public void init() {
+  this.s.print();
+ }
+}
+```
+
+La siguiente es la clase que implementa la funcionalidad del framework (genera la ventana modal) e invoca al método de enganche.
+
+{caption: "Clase con punto de extensión"}
+```java
+abstract class Screen {
+ public final void print() {
+  JFrame frame = new JFrame();
+  JOptionPane.showMessageDialog(frame, this.text());
+  frame.dispose();
+ }
+
+ protected abstract String text();
+}
+```
+Hasta aquí tenemos las clases que pertenecen al framework. A continuación, seguimos con la implementación de las clases propias de mi aplicación que instanciarán el framework. Primero, tal como dice la documentación del framework, extendamos de *Screen* e implementemos el método de enganche *text*().
+
+{caption: "Clase que implementa el punto de extensión"}
+```java
+class MyApplication extends Screen {
+ @Override
+ protected String text() {
+  return "printing this text on "
+                + "screen using a "
+                + "white Box Framework";
+ }
+}
+```
+Finalmente, creamos una clase *Main* para poder crear la instancia de *Start* e invocar al método *init*(). A esto se lo denomina instanciación del framework.
+
+{caption: "Clase Main de mi aplicación"}
+```java
+class Main {
+ public static void main(String args[]) {
+  Start s = new Start(new MyApplication());
+  s.init();
+ }
+}
+```
+La siguiente figura muestra la relación de las clases del framework con las propias de mi aplicación.
+
+![Basado en herencia](yed/whitebox-fw.png)
+
+Repasemos algunos conceptos implementados en el ejemplo:
+
+* El punto de extensión del framework es un método abstracto. Para implementarlo y así personalizar el framework debemos heredar de la clase del framework. Ésto lo categoriza al framework en uno de caja blanca.
+* Observamos la inversión de control, dado que el método *Screen*#*print* del framework es quien invoca al método *MyApplication*#*text*. *MyApplication* es una clase propia.
+* El framework utiliza el patrón de diseño denominado Template Method[^^gammatm]. Éste patrón es el que normalmente se utiliza para construir frameworks de caja blanca.
+* Finalmente, note que el framework definió *Screen*#*print* como *final*. Ese método no fue pensando para ser sobre-escrito, por eso no se encuentra en la documentación del framework. Sin embargo, en lenguajes donde no es posible especificar que métodos no pueden re-definirse, habilitaría a los desarrolladores a re-definir métodos no diseñados para tal fin (sin querer, por error) y así generaríamos bugs. Ésta es una desventaja de los frameworks de caja blanca.
+
+### Frameworks basados en composición
+
+Ahora transformemos el framework de caja blanca presentado en la sección anterior por uno idéntico de caja negra. De igual forma que el ejemplo anterior, la siguiente clase del framework es la que inicia el flujo de ejecución.
+
+{caption: "Clase principal del framework"}
+```java
+/* Este framework permite mostrar texto en la pantalla.
+ *
+ * Para usarlo, Usted debe implementar la interfaz Text. Luego, crear
+ * una instancia de Start y pasar una instancia de su implementación de Text
+ * como parámetro del constructor. Finalmente, invoque al método Start#init().
+ * */
+class Start {
+ private Screen s;
+
+ public Start(Text text) {
+  this.s = new Screen(text);
+ }
+
+ public void init() {
+  this.s.print();
+ }
+}
+```
+La siguiente clase implementa la funcionalidad principal del framework e invoca al método de enganche.
+
+{caption: "Clase colaboradora del framework"}
+```java
+final class Screen {
+ private Text text;
+
+ public Screen(Text text) {
+  this.text = text;
+ }
+
+ public final void print() {
+  JFrame frame = new JFrame();
+  JOptionPane.showMessageDialog(frame,
+                                  text.text());
+  frame.dispose();
+ }
+}
+```
+La siguiente es la interfaz que se requiere implementar para personalizar el framework.
+
+{caption: "Punto de extensión"}
+```java
+interface Text {
+ String text();
+}
+```
+
+Hasta aquí tenemos las clases que pertenecen al framework. A continuación, seguimos con la implementación de las clases propias de mi aplicación que instanciarán el framework. Primero, tal como dice la documentación del framework, implementamos la interfaz *Text*.
+
+{caption: "Clase que implementa el punto de extensión"}
+```java
+class MyText implements Text {
+ @Override
+ public String text() {
+  return "printing this text on "
+             + "screen using a black Box Framework";
+ }
+}
+```
+
+Finalmente, al igual que antes, creamos una clase *Main* para poder instanciar el framework.
+
+{caption: "Clase Main de mi aplicación"}
+```java
+class Main {
+ public static void main(String args[]) {
+  Start m = new Start(new MyText());
+  m.init();
+ }
+}
+```
+
+La siguiente figura muestra la relación de las clases del framework con las propias de mi aplicación.
+
+![Basado en composición](yed/blackbox-fw.png)
+
+Repasemos ahora algunos conceptos implementados en el ejemplo:
+
+* Hicimos *final* la clase del framework *Screen*, no queremos que nadie la extienda.
+* La clase *Screen* se _compone_ de *Text* de modo de poder invocar a instancias que la implementen.
+* Luego, en la implementación del método *Screen*#*print* delegamos en *Text*#*text*().
+* Finalmente, utilizamos el constructor de la clase *Start* para inyectar la instancia de *Text*, que permite personalizar el framework.
+
+Para cerrar, es importante aclarar que las aplicaciones como Eclipse o Jenkins (igual sucede con los Browsers y sus addons) son extendidas agregando plugins. Los plugins no son más que clases que implementan los puntos de extensión que ofrecen Eclipse o Jenkins. Éstos tipos de aplicaciones, que se las conoce como aplicaciones con arquitectura micro-kernel o de plugin, en general, requieren que los programadores copien los fuentes que implementan los plugins en directorios específicos claramente documentados, en lugar de inyectar las instancias de éstos en constructores de sus clases, tal como en lo hemos hecho en los ejemplos mostrador aquí. Cuando éstas aplicaciones inician, revisan estos directorios y crean las instancias de los plugins depositados allí, para luego, eventualmente, delegar en ellos.
+
+## Funciones callback
+
+Las funciones callback presentes en una gran cantidad de lenguajes con tipado dinámico (php, javascript, python, entre otros) ofrecen una forma de personalización de componentes de software con las mismas características que los frameworks.
+
+El siguiente ejemplo muestra algo de HTML y Javascript utilizando la librería JQuery. JQuery, a pesar de no ser un framework, aprovecha las funciones callback presentes en Javascript, para proveer al programador de puntos de extensión.
+
+{caption: "Inversión de control con JQuery"}
+```html
+<!DOCTYPE html>
+<html>
+ <head>
+  <script src="https://aserver.com/jquery.min.js"></script>
+  <script>
+   $(document).ready(function() {
+     $("#hide").click(function() {
+      $("p").hide(myFunction);
+     });
+     $("#show").click(function() {
+      $("p").show(myFunction);
+     });
+   });
+   function myFunction() {
+    console.log("Esto fue invocado desde JQuery");
+   }
+  </script>
+ </head>
+ <body>
+  <p>If you click on the "Hide" button, I will disappear.</p>
+  <button id="hide">Hide</button>
+  <button id="show">Show</button>
+ </body>
+</html>
+```
+
+Cuando el usuario clickea en alguno de los botones de hide o show, se invoca al método click, escondiendo o mostrando el párrafo *p*. Luego de su ejecución, JQuery invoca a la función *myFunction* que es propia de mi aplicación, por lo tanto, tenemos aquí también, inversión de control. El mecanismo que ofrece JQuery como punto de extensión no es ni herencia ni composición, son funciones callback que se pasan como parámetro en lo métodos .*hide* y .*show*[^^jqueryshow][^^jqueryhide].
+
+[^^jqueryshow]: https://api.jquery.com/show/
+[^^jqueryhide]: https://api.jquery.com/hide/
+[^^drc]: Designing Reusable Classes. Ralph E. Johnson, Brian Foote. 1988.
+[^^gammatm]: Design Patterns: Elements of Reusable Object-Oriented Software. Addison-Wesley Professional, 1994.

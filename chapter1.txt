@@ -1,0 +1,231 @@
+# Encapsulamiento
+
+{blockquote}
+“Procedural code gets information then makes decisions. Object-oriented code tells objects to do things”. Alec Sharp[^^sharp].
+{/blockquote}
+
+**Encapsulamiento** no es simplemente declarar variables de instancia privadas. En mucho más que eso. En esta sección abordamos en profundidad éste concepto, el más importante del paradigma orientado a objetos.
+
+## *Getters* y *setters*: ¿de donde vienen?
+
+Denominar a los métodos como *getPropiedad*() o *setPropiedad*() se hizo principalmente conocido por la especificación *JavaBean*. Ésta pretendía construir un estándar sobre el cual se podrían construir todo tipo de herramientas. Por ejemplo, los ORMs[^^orms] se basan fuertemente en esta especificación. Dicha especificación requiere:
+- Que toda propiedad de una clase tuviera un *setter* y un *getter*, siguiendo la convención de nombres.
+- La clase debía contener un constructor vacío.
+
+Ésta especificación tuvo un impacto **muy** negativo en los desarrolladores principalmente en aquellos que se iniciaron con Java en el paradigma orientada a objetos. El uso de *setters* y *getters* fue (mal) interpretado como una buena práctica, olvidando los pilares fundamentales del paradigma de objetos como el encapsulamiento.
+
+Por si fuera poco, Eclipse y otros IDEs te ofrecen facilidades para generar *getters* y *setters* lo cual ha colaborado aún mas con esta deformación que termina en diseños malos.
+
+Por otro lado, es muy común encontrar en libros, posteos de diferentes programadores en sus blogs o en respuestas en *stackoverflow*, ejemplos de clases que implementan la especificación *JavaBean*, sin nada de lógica, y refiriendose a ellas como que son *POJO*s (*Plain* *Old* *Java* *Object*)[^^pojo]. *POJO* es constantemente confundido con *JavaBean* o tomado como que es lo mismo. _No es así_. En épocas de EJBs[^^ejb] donde la lógica de negocios era implementada dentro de clases que extendían y eran manejadas por un framework pesado y verboso, Martin Fowler y Rebecca Parsons y Josh MacKenzie proponen denominar a las clases Java (aquellas que solo extienden de *java*.*lang*.*Object*) como *POJO*. Con la idea de que ésta simpática denominación ayudara a convencer a los programadores de utilizar simplemente clases del lenguaje Java (sin extender del framework EJB) para implementar la lógica de negocios. Y que se extienda del framework para detalles técnicos como la persistencia por ejemplo. Ésto tuvo mucho éxito, de hecho prácticamente termino con la especificación EJB. Sin embargo, no hay que confundir *POJO* con *JavaBean*. *POJO*, además de lo ya mencionado, refiere a objetos propiamente encapsulados y con responsabilidades claras.
+
+## *Getters* y *setters*: ¿donde impactan los cambios?
+
+Unos años antes de que llegara el año 2000, se popularizó un defecto en muchos sistemas de todo el mundo denominado como Y2K (Year 2000). El problema consistía básicamente en que para la representación de una fecha se utilizaron dos dígitos en el año, lo que impedía distinguir fechas del tipo 10/02/00, ya que podría ser el año 1900 o el año 2000. De esta forma, cualquier cálculo que se realizara con fechas podría dar valores incorrectos. Este problema se daba más que nada en sistemas programados en Cobol, muchos años atrás donde aquellos programadores para ahorrar memoria utilizaron dos dígitos para el año sin prever que en el futuro sería un problema. Esto obligo a realizar modificaciones a los sistemas. Todo lugar donde se declaraba una variable para el año con dos dígitos debía ser modificado a cuatro dígitos. Esto requirió revisar todos los fuentes de las aplicaciones, por no haber contando (Cobol no lo tenia) con un mecanismo de abstracción que encapsulara esa decisión de diseño.
+
+De forma similar, esto podría ocurrir si no aprovechamos los mecanismos de abstracción con los que contamos. Imaginemos el modelado de una fecha con dos dígitos para el año implementado de la siguiente forma:
+
+{caption: "Fecha getters/setters}
+```java
+class Fecha {
+ private char[2] dia;
+ private char[2] mes;
+ private char[2] anio;
+
+ public char[2] getDia() {
+  return dia;
+ }
+
+ public void setDia(char[2] dia) {
+  this.dia = dia;
+ }
+
+ public char[2] getMes() {
+  return mes;
+ }
+
+ public void setMes(char[2] mes) {
+  this.mes = mes;
+ }
+
+ public char[2] getAnio() {
+  return anio;
+ }
+
+ public void setAnio(char[2] anio) {
+  this.anio = anio;
+ }
+}
+```
+Luego, en mi aplicación, en otros archivos fuente donde quiera trabajar con fechas tendría algo así:
+
+{caption: "Usando getters/setters}
+```java
+char[2] dia = unaFecha.getDia();
+char[2] mes = unaFecha.getMes();
+char[2] anio = unaFecha.getAnio();
+//cálculo utilizando día, mes y año
+//...
+//...
+```
+Todo lugar en mi aplicación donde tenga asignaciones del año de una fecha, similar al ejemplo anterior, tendría que ser  modificado. Esto podría ser potencialmente _toda la aplicación_. Cada archivo de código fuente podría tener que ser modificado.
+
+En cambio, encapsulando en una abstracción la representación de la fecha (con dos dígitos para el año) y exponiendo la funcionalidad como servicio de dicha abstracción, tendríamos lo siguiente:
+
+{caption: "Fecha Encapsulada}
+```java
+class Fecha {
+ private char[2] dia;
+ private char[2] mes;
+ private char[2] anio;
+
+ public Fecha calculo(...) {
+  //cálculo utilizando día, mes y año
+  //...
+  //...
+  //retorno una nueva instancia de Fecha
+ }
+
+ public String toString() {
+  //retorno la representación en String de la fecha
+ }
+}
+```
+{caption: "Uso de Fecha Encapsulada}
+```java
+Fecha nuevaFecha = unFecha.calculo(...);
+//trabajemos con nuevaFecha
+```
+Observemos que de esta forma, sólo hubiéramos tenido que modificar dicha abstracción.
+
+Veamos a continuación otro ejemplo:
+
+{format: java}
+![](src/encapsulamiento/info-hiding1.java)
+
+¿Qué pasa si ahora nos piden guardar el historial de claves que un usuario tiene?
+
+Primero debería modificar *Usuario* y el tipo de dato de la variable de instancia *clave*, el *setter* debería cambiar y luego cambiar la lógica que está afuera de *Usuario*. Ésta versión de la clase *Usuario*, al igual que toda clase donde solo tengamos variables de instancia expuestas con *getters* y *setters* se los denomina **Objetos Anémicos**[^^anemic].
+
+¿Entonces? ¿Cómo se implementa en el paradigma de objetos? Nuevamente, _encapsulando_:
+
+{format: java}
+![](src/encapsulamiento/info-hiding2.java)
+
+Entonces, ¿cómo queda la nueva implementación teniendo en cuenta el nuevo requerimiento?
+
+{format: java}
+![](src/encapsulamiento/info-hiding3.java)
+
+Observe que la clase *Cliente* no requirió ser modificada. *El paradigma orientado a objetos fue, en parte, ideado para disminuir el efecto que tienen los cambios en las aplicaciones. Siempre y cuando encapsulemos correctamente*.
+
+## Otros inconvenientes generados por *setters* y *getters* (alias)
+
+Considere el siguiente código[^^bain]:
+
+{format: java}
+![Inconvenientes con Setters y Getters](src/encapsulamiento/inconv-set-get.java)
+
+¿Está encapsulado *myFoo* en *Bar*? Bueno, parece que si, es privado y no tiene *getters*/*setters*.
+
+Observe la siguiente versión de *Client*#*main*:
+
+{format: java}
+![Inconvenientes con Setters y Getters](src/encapsulamiento/inconv-set-get-2.java)
+
+La segunda llamada a *b*.*process*() producirá un resultado muy diferente a la primer llamada. *Client* tiene acceso a la instancia *f* con la que puede invocar el método *setter* de *myFoo*. Dado que *f* es la referencia (o alias) de la instancia con la que se construyó la instancia de *Bar* *b*, la invocación a *f.setX(10)* rompe el encapsulamiento en *b*.
+
+Evitar el uso de *setters* es lo recomendado, o sea, favorecer siempre objetos _inmutables_. Pero si realmente lo necesitamos (debe estar muy justificado), para asegurarnos de que no sucede lo expuesto arriba, podemos realizar una _copia_ o clonar la instancia de la siguiente forma:
+
+{format: java}
+![Inconvenientes con Setters y Getters](src/encapsulamiento/inconv-set-get-clonar.java)
+
+Ahora *myFoo* no tiene un alias pasado por constructor sino una copia clonada que no puede ser modificada desde afuera. Este mismo problema podría suceder si en *Bar* agregamos un *getter* de *myFoo* para luego utilizar su *setter* para modificar el valor de *x*. De necesitarlo, ese *getter* debería devolver una instancia de *myFoo* clonada.
+
+## Tell, don't ask[^^telldont]
+
+Fue necesario (y sigue siendo) encontrar éste nombre "simpático" de modo tal que los programadores lo recuerden con facilidad. "Tell, don’t ask" es el nombre elegido para ayudar a recordar que en objetos se diseña con encapsulamiento. Nos recuerda que en lugar de pedirle datos de su estado interno a un objeto para realizar un cálculo con ellos, deberíamos pedirle al objeto que realice ese cálculo por nosotros.
+
+El siguiente es un ejemplo donde no estoy cumpliendo con "Tell, don’t ask":
+
+{format: java}
+![Tell don't ask](src/encapsulamiento/tell-dont-ask1.java)
+
+Observe que desde el *Cliente* estoy pidiéndole ("ask") los productos al *carrito* de compras para realizar el cálculo del precio total de los productos que contiene. Para cumplir con esta buena práctica la lógica del cálculo debería estar contenida o mejor dicho, encapsulada, en *CarritoCompras* dado que el cálculo se realiza con información que él mismo conoce. Así quedarían *CarritoCompras* y el *Cliente*, respetando "Tell, don’t ask":
+
+{format: java}
+![Tell Don't Ask](src/encapsulamiento/tell-dont-ask2.java)
+
+*Quitamos* el método *CarritoCompras*#*getProductos*() y *agregamos* *montoTotal*().
+
+### A veces es necesario preguntar
+Supongamos el siguiente ejemplo en el cual implementamos la reserva de asientos en un tren[^^freeman]:
+
+{format: java}
+![Tell Don't Ask](src/encapsulamiento/tell-dont-ask3.java)
+
+Observe que para implementar este requerimiento estamos exponiendo la estructura interna de *Vagon* y no deberíamos. Podríamos tener diferentes tipos de vagones y eso haría más complejo aún la implementación dentro de *Tren*. En su lugar, deberíamos hacerle preguntarle a *Vagon* para que nos responda él si tenemos lugar disponible. Observemos como lo mejoramos a continuación:
+
+{format: java}
+![Tell Don't Ask](src/encapsulamiento/tell-dont-ask4.java)
+
+## Necesito retornar: retornemos instancias nuevas
+
+Por supuesto que muchas veces es necesario retornar objetos, por ejemplo para mostrarlos en una vista o para colaborar con otro objeto que lo requiere.
+Si *Vagon* fuera un objeto mutable (alguno de sus métodos modifican su estado) deberíamos devolver una *nueva instancia* y no la instancia ya creada como colaborador de *Tren* y encapsulada allí. Por ejemplo, de la siguiente forma:
+
+{format: java}
+![Tell Dont Ask](src/encapsulamiento/tell-dont-ask5.java)
+
+### ¿Y cuando encapsulamos colecciones?
+
+Cuando encapsulamos colecciones, dado que son mutables, podríamos hacer lo siguiente:
+
+{format: java}
+![Tell Dont Ask](src/encapsulamiento/tell-dont-ask6.java)
+
+## Regla de demeter
+
+La Regla de demeter[^^demeter], con similar espíritu que "Tell don't ask", fue presentada en el paper "Object-Oriented Programming: An Objective Sense of Style" de 1988. Ésta ofrece un método para restringir el conjunto de objetos al que le puedo enviar mensajes.
+
+Supongamos la clase *Tren* y el método *reservarAsiento*(), utilizado anteriormente. La regla de demeter solo permite enviar mensajes a:
+1. Los otros métodos de *Tren*
+2. Los objetos que vienen por parámetro en *reservarAsiento*()
+3. Los objetos creados por métodos llamados por *reservarAsiento*() son considerados como parámetros.
+4. Colaboradores directos de *Tren* (sus dependencias / variables de instancia).
+
+Antes de aplicar "Tell don’t ask", en el método *Tren*#*reservarAsiento*() teníamos:
+{caption: "El uso de getters encadenados viola la regla de demeter"}
+```java
+bagon.getAsientos().getPorcentajeRes();
+```
+Esto es un claro ejemplo de violación a la regla de demeter, ya que estamos enviándole mensajes a *Asientos* _que_ _es_ _una_ _instancia_ _encapsulada_ _de_ _Bagon_, y no es un colaborador directo de *Tren*. ¿Qué consecuencias tiene esto? Si *Asientos* o *PorcentajeReserva* cambian quizás tengamos que modificar el método *Tren*#*reservarAsiento*(). Esto innecesariamente incrementa el costo de los cambios. Por otro lado, los autores de la regla de demeter también la denominan "La regla del buen estilo", para enfatizar y promover un estilo de escribir programas orientados a objetos con cierta elegancia.
+
+## No utilicemos los prefijos get/set
+No denominemos nunca a los métodos con el prefijo *get* o *set*, utilicemos *lenguaje* del *dominio del problema* que estamos modelando. No es lo mismo escribir
+```java
+tren.setVagon(new Vagon(...));
+```
+que escribir:
+```java
+tren.incorporarVagon(new Vagon(...));
+```
+
+### Uso una herramienta, necesito *getters*/*setters*[^^beck]
+Como mencionamos antes, la especificación *JavaBean* incorporó los *getters* y *setters*, más un constructor vacío, de modo de permitir construir todo tipo de herramientas. Puede ocurrir entonces que el uso de una herramienta nos obligue a crear *setters* y *getters*. Esto sucede por ejemplo con los ORMs.
+Primero hay que verificar con la documentación de la herramienta si estos métodos realmente deben ser públicos. Es probable que puedan ser *privados* o *protegidos*. Poder declararlos como *no públicos* es importante para que nadie de nuestro equipo de desarrollo los utilice por error.
+Por otro lado es importante agregarles un comentario indicando que fueron agregados *únicamente* con el propósito de que sean utilizados por la herramienta.
+
+Diseñen clases sin *getters*/*setters*. Empiecen siempre pensando en el encapsulamiento como lo que realmente es, el _concepto_ _más_ _importante_ de la _Programación_ _Orientado_ a _Objetos_.
+Es más simple ocultar todo y comenzar a liberar si realmente es necesario. Que liberar todo de entrada y luego intentar ocultar.
+
+[^^freeman]: Growing Object-Oriented Software, Guided by Tests. Steve Freeman, Nat Pryce.
+[^^sharp]: Smalltalk by Example, Alec Sharp. McGraw-Hill Publishing Co, 1996.
+[^^beck]: Implementation Patterns. Kent Beck. Addison Wesley. 2008.
+[^^bain]: Encapsulation as a First Principle of Object-Oriented Design, Scott L. Bain.
+[^^orms]: Object-Relational Mapper
+[^^pojo]: https://www.martinfowler.com/bliki/POJO.html
+[^^ejb]: Enterprise Java Bean (Sun), su versión inicial y su segunda versión requerían
+[^^ejb]: Enterprise Java Bean (Sun), su versión inicial y su segunda versión requerían
+[^^anemic]: https://martinfowler.com/bliki/AnemicDomainModel.html
+[^^telldont]: https://media.pragprog.com/articles/jan_03_enbug.pdf
+[^^demeter]: Object-Oriented Programming: An Objective Sense of Style. K. Lieberherr, I. IIolland, A. Riel. OOPSLA'88 Proceedings, 1988.
