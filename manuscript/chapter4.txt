@@ -20,7 +20,7 @@ Como se puede observar, mi aplicación completa incluye las clases propias (en l
 
 Cuando construimos nuestra aplicación a partir de un framework, como mencionamos, es el framework quien controla el flujo de ejecución con lo cual, lo primero que debemos hacer es instanciar el framework y delegar en él para que éste comienza la ejecución. Durante la ejecución, eventualmente, invocará a las clases propias de nuestra aplicación. A esto se lo denomina **inversión de control** y es la principal características que diferencia a los frameworks de las librerías. Veamos la siguiente figura:
 
-![Mi Aplicación construida a partir de un framework](yed/fw-app.png)
+![Mi Aplicación construida a partir de un framework](yed/fw-app.svg)
 
 Como se puede observar, mi aplicación completa incluye las clases propias (a la derecha de la figura) y las clases del framework (a la izquierda de la figura). Dentro de las clases del framework tenemos la clase *Start* quien inicia la ejecución del framework, para luego eventualmente invocar a las clases propias de mi aplicación (*FwFoo* invoca algún método de *Bar*). La línea punteada indica una dependencia en ejecución. No existe dependencia en compilación desde el framework hacia nuestra aplicación por supuesto, sino éste no podría ser reutilizable. Por otro lado, observemos que una clase propia de nuestra aplicación hereda de una clase del framework (*Bar* extiende o implementa a *FwBar*).
 
@@ -103,7 +103,7 @@ class Main {
 ```
 La siguiente figura muestra la relación de las clases del framework con las propias de mi aplicación.
 
-![Basado en herencia](yed/whitebox-fw.png)
+![Basado en herencia](yed/whitebox-fw.svg)
 
 Repasemos algunos conceptos implementados en el ejemplo:
 
@@ -191,7 +191,7 @@ class Main {
 
 La siguiente figura muestra la relación de las clases del framework con las propias de mi aplicación.
 
-![Basado en composición](yed/blackbox-fw.png)
+![Basado en composición](yed/blackbox-fw.svg)
 
 Repasemos ahora algunos conceptos implementados en el ejemplo:
 
