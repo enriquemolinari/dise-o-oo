@@ -97,14 +97,14 @@ class Copiador {
 El método *Copiador*#*copiar*() utiliza la entrada estándar (*System*.*in*) que en general es el teclado y la abstracción *File* para generar el archivo en disco. La siguiente figura muestra la clase *Copiador* y sus dependencias.
 
 {height: "30%"}
-![Copiador y sus dependencias](yed/copiador.png)
+![Copiador y sus dependencias](yed/copiador.svg)
 
 Podemos observar que las clases *System*.*in* y *File* son reutilizables en otros contextos, sin embargo *Copiador* no, ya que depende de *System*.*in* y *File*. Supongamos por ejemplo que ahora nos piden leer de teclado y enviarlo a una impresora, o nos piden leer de un servicio Web y enviarlo a otro. Podríamos resolverlo enviando parámetros al método *copiar*() y poner algunos *if*s que nos permita seleccionar entre estas opciones. Esta forma de diseñar eventualmente se transforma en algo complejo de cambiar. Además, como mencionamos en el capitulo anterior en la sección de binding dinámico, queremos agregar funcionalidad nueva agregando código y no modificando código existente.
 
 Si tomamos qué nos dice el principio de inversión de dependencias y volvemos a revisar nuestro diseño, podemos observar que *Copiador* es una clase de alto nivel y *System*.*in* y *File* son clases de bajo nivel (detalles técnicos como hemos denominado anteriormente). La abstracción de fondo es copiar datos a partir de una entrada y llevarlos a una salida, el teclado y un archivo en disco son detalles técnicos de bajo nivel. Vamos entonces a invertir las dependencias. Para ello ya que estamos utilizando el lenguaje Java, utilizaremos las clases abstractas *InputStream* y *OutputStream* de Java generando el siguiente diseño:
 
 {height: "50%"}
-![Copiador desacoplado de los detalles de bajo nivel](yed/copiador-desacoplado.png)
+![Copiador desacoplado de los detalles de bajo nivel](yed/copiador-desacoplado.svg)
 
 *InputStream* y *OutputStream* son clases abstractas que modelan entradas y salidas en términos generales (o abstractos). Ahora las tres clases dependen de abstracciones tal como dice el principio. Veamos entonces cómo queda la clase *Copiador*:
 ```java

@@ -14,7 +14,7 @@ Para dar una definición de framework, tomaremos la de Ralph Johnson, Brian Foot
 
 Cuando en nuestra aplicación utilizamos una librería, es la aplicación quien controla el flujo de ejecución y eventualmente instancia e invoca a las clases de la librería. Veamos la siguiente figura:
 
-![Mi Aplicación utilizando una librería](yed/lib-app.png)
+![Mi Aplicación utilizando una librería](yed/lib-app.svg)
 
 Como se puede observar, mi aplicación completa incluye las clases propias (en la izquierda de la figura) junto a las clases de la librería (en la derecha de la figura). Las flechas indican dependencias en compilación (donde la flecha negra indica composición y la flecha blanca es herencia o implementación de interfaces). La clase *Main* es la que inicia la ejecución de mi aplicación, y eventualmente desde alguna de las clases de mi aplicación (*Bar* en la figura) instancio e invoco a las clases de la librería (*LibBar* en la figura).
 
